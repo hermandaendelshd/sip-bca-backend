@@ -107,6 +107,49 @@ app.post('/api/warga', authMiddleware, async (req, res) => {
     }
 });
 
+// 6. ENDPOINT EDIT DATA WARGA
+app.put('/api/warga/:id', authMiddleware, async (req, res) => {
+    const { id } = req.params;
+    const { nik, no_kk, nama, alamat, hubungan, jk, tgl_lahir, agama, rt, status_tinggal, status_keberadaan } = req.body;
+
+    if (req.user.role === 'RT' && rt !== req.user.rt_wilayah) {
+        return res.status(403).json({ message: 'Anda tidak diizinkan mengubah data untuk RT lain!' });
+    }
+
+    try {
+        const query = `
+            UPDATE warga 
+            SET nik = $1, no_kk = $2, nama = $3, alamat = $4, hubungan = $5, jk = $6, tgl_lahir = $7, agama = $8, rt = $9, status_tinggal = $10, status_keberadaan = $11
+            WHERE id = $12
+        `;
+        await db.query(query, [nik, no_kk, nama, alamat, hubungan, jk, tgl_lahir, agama, rt, status_tinggal, status_keberadaan, id]);
+        
+        res.json({ message: 'Data warga berhasil diperbarui!' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 7. ENDPOINT HAPUS DATA WARGA
+app.delete('/api/warga/:id', authMiddleware, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // Opsional: Jika role RT, pastikan data warga yang dihapus memang wilayah RT-nya
+        if (req.user.role === 'RT') {
+            const check = await db.query('SELECT rt FROM warga WHERE id = $1', [id]);
+            if (check.rows.length > 0 && check.rows[0].rt !== req.user.rt_wilayah) {
+                return res.status(403).json({ message: 'Anda tidak diizinkan menghapus data RT lain!' });
+            }
+        }
+
+        await db.query('DELETE FROM warga WHERE id = $1', [id]);
+        res.json({ message: 'Data warga berhasil dihapus!' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server berjalan di port ${PORT}`);
